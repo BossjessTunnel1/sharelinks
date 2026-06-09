@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PicLinks - Transform Images into Clickable Links</title>
+    
+    <!-- Open Graph Meta Tags for Social Media Previews -->
+    <meta property="og:title" content="PicLinks Image">
+    <meta property="og:description" content="Click to see the destination!">
+    <meta property="og:image" content="https://via.placeholder.com/1200x630.png/141414/ffffff?text=PicLinks">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <style>
+        :root {
+            --primary-color: #e50914;
+            --background-color: #141414;
+            --text-color: #ffffff;
+            --card-background: #222222;
+            --font-family: 'Arial', sans-serif;
+        }
+        body { margin: 0; font-family: var(--font-family); background-color: var(--background-color); color: var(--text-color); line-height: 1.6; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background-color: var(--card-background); border-bottom: 2px solid var(--primary-color); }
+        .logo { font-size: 2em; font-weight: bold; color: var(--text-color); }
+        .logo-accent { color: var(--primary-color); }
+        .hero { text-align: center; padding: 60px 20px; }
+        .hero h1 { font-size: 3em; margin-bottom: 20px; }
+        .hero p { font-size: 1.2em; max-width: 800px; margin: 0 auto 30px auto; }
+        .cta-button { background-color: var(--primary-color); color: var(--text-color); padding: 15px 30px; text-decoration: none; border-radius: 5px; font-size: 1.2em; font-weight: bold; transition: background-color 0.3s; cursor: pointer; border: none; }
+        .cta-button:hover { background-color: #f40612; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.8); }
+        .modal-content { background-color: #2a2a2a; margin: 10% auto; padding: 40px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 10px; text-align: center; position: relative; }
+        .close-button { position: absolute; top: 15px; right: 20px; color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .form-group { margin-bottom: 20px; text-align: left; }
+        .form-group label { display: block; margin-bottom: 5px; }
+        .form-group input[type="file"], .form-group input[type="url"], .form-group input[type="text"] { width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #555; background-color: #333; color: var(--text-color); box-sizing: border-box; }
+        #linkResult { text-align: center; margin-top: 20px; }
+        #previewImage { max-width: 100%; height: auto; border-radius: 8px; margin-bottom: 20px; border: 2px solid var(--primary-color); }
+        .generated-link { background-color: #333; padding: 10px; border-radius: 5px; margin-bottom: 20px; word-break: break-all; text-align: left; }
+        #loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid var(--primary-color); width: 40px; height: 40px; animation: spin 2s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="main-content">
+        <header>
+            <div class="logo">PIC<span class="logo-accent">LINKS</span></div>
+        </header>
+
+        <main>
+            <section class="hero">
+                <div class="container">
+                    <h1>Image Links</h1>
+                    <p>Transform images into clickable links that show a preview on social media and redirect to any URL.</p>
+                    <button class="cta-button" id="createLinkBtn">Create Image Link</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="createLinkModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" id="closeBtn">&times;</span>
+            <div id="form-view">
+                <h2>Create a Sharable Image Link</h2>
+                <form id="createLinkForm">
+                    <div class="form-group">
+                        <label for="imageUpload">Upload Image (Under 1MB recommended):</label>
+                        <input type="file" id="imageUpload" accept="image/*" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="destUrl">Destination URL:</label>
+                        <input type="url" id="destUrl" placeholder="https://your-target-website.com" required>
+                    </div>
+                    <button type="submit" class="cta-button">Generate Link</button>
+                </form>
+            </div>
+            <div id="loader-view" class="hidden"><p>Generating your link...</p><div id="loader"></div></div>
+            <div id="result-view" class="hidden">
+                <h2>Link Generated Successfully!</h2>
+                <div id="linkResult">
+                    <img id="previewImage" src="" alt="Image Preview">
+                    <p><strong>Copy and share your new link:</strong></p>
+                    <div class="generated-link" id="generatedLinkText"></div>
+                    <button id="copyBtn" class="cta-button">Copy Link</button>
+                    <button id="createAnotherBtn" class="cta-button" style="background-color: #555; margin-top: 10px;">Create Another</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // --- REDIRECTION LOGIC ---
+    // This part of the script runs immediately when the page loads.
+    // It checks if there is data in the URL hash to perform a redirect.
+    (function() {
+        try {
+            const hash = window.location.hash.substring(1);
+            if (hash) {
+                // Hide the main page content to prevent flashing
+                document.getElementById('main-content').style.display = 'none';
+
+                const decodedHash = atob(hash); // Decode from Base64
+                const params = new URLSearchParams(decodedHash);
+                
+                const imageUrl = params.get('img');
+                const redirectUrl = params.get('dest');
+                const title = params.get('title') || 'PicLinks Image';
+
+                if (imageUrl && redirectUrl) {
+                    // Dynamically update the meta tags for social media crawlers
+                    document.querySelector('meta[property="og:title"]').setAttribute('content', title);
+                    document.querySelector('meta[property="og:image"]').setAttribute('content', imageUrl);
+                    document.querySelector('meta[name="twitter:card"]').setAttribute('content', 'summary_large_image');
+                    
+                    // Redirect the user to the destination URL
+                    window.location.replace(redirectUrl);
+                }
+            }
+        } catch (e) {
+            console.error("Error processing URL hash:", e);
+            // If there's an error, just show the main page.
+            document.getElementById('main-content').style.display = 'block';
+        }
+    })();
+
+    // --- LINK CREATION LOGIC ---
+    // This part of the script handles the user interface for creating links.
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('createLinkModal');
+        const createLinkBtn = document.getElementById('createLinkBtn');
+        const closeBtn = document.getElementById('closeBtn');
+        const createLinkForm = document.getElementById('createLinkForm');
+        
+        const formView = document.getElementById('form-view');
+        const loaderView = document.getElementById('loader-view');
+        const resultView = document.getElementById('result-view');
+
+        const openModal = () => {
+            modal.style.display = 'block';
+            formView.classList.remove('hidden');
+            loaderView.classList.add('hidden');
+            resultView.classList.add('hidden');
+            createLinkForm.reset();
+        };
+        const closeModal = () => modal.style.display = 'none';
+
+        createLinkBtn.addEventListener('click', openModal);
+        closeBtn.addEventListener('click', closeModal);
+        window.addEventListener('click', (e) => { if (e.target == modal) closeModal(); });
+
+        createLinkForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            formView.classList.add('hidden');
+            loaderView.classList.remove('hidden');
+
+            const imageFile = document.getElementById('imageUpload').files[0];
+            const destUrl = document.getElementById('destUrl').value;
+
+            if (imageFile && destUrl) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const imageAsDataUrl = event.target.result;
+                    
+                    // Construct the parameters
+                    const params = new URLSearchParams({
+                        img: imageAsDataUrl,
+                        dest: destUrl,
+                        title: 'Check out this image!'
+                    }).toString();
+
+                    // Encode the parameters in Base64 to make the URL cleaner
+                    const encodedParams = btoa(params);
+                    
+                    // Get the current page's URL, but remove any existing hash
+                    const baseUrl = window.location.href.split('#')[0];
+                    
+                    const finalUrl = `${baseUrl}#${encodedParams}`;
+
+                    document.getElementById('previewImage').src = imageAsDataUrl;
+                    document.getElementById('generatedLinkText').textContent = finalUrl;
+                    
+                    loaderView.classList.add('hidden');
+                    resultView.classList.remove('hidden');
+                };
+                reader.readAsDataURL(imageFile);
+            }
+        });
+
+        document.getElementById('copyBtn').addEventListener('click', function() {
+            const linkText = document.getElementById('generatedLinkText').textContent;
+            navigator.clipboard.writeText(linkText).then(() => {
+                this.textContent = 'Copied!';
+                setTimeout(() => { this.textContent = 'Copy Link'; }, 2000);
+            });
+        });
+
+        document.getElementById('createAnotherBtn').addEventListener('click', () => {
+            resultView.classList.add('hidden');
+            formView.classList.remove('hidden');
+            createLinkForm.reset();
+        });
+    });
+    </script>
+</body>
+  </html>
